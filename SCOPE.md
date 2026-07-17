@@ -1,4 +1,4 @@
-# SCOPE
+# SCOPE — DO NOT ADD FEATURES
 
 ## Must Ship
 - [ ] Compact circuit compiles
@@ -13,6 +13,14 @@
 
 ## Explicitly Not Building
 - Headcount proofs
-- Wallet customization
-- Auth/multi-user
-- Production indexer
+- Uptime proofs
+- Multi-credential aggregation
+- Production Midnight indexer
+- Wallet UI customization
+- Error recovery (if it fails, restart)
+- Auth / multi-user / rate limiting / logging
+
+## Hard Constraints
+- No new features after Fri 8 PM
+- If it's not integrated by Sat 4 PM, it doesn't ship
+- Recorded demo backup must be ready by Sat 6 PM
