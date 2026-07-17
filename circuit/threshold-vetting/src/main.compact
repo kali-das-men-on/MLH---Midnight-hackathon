@@ -1,0 +1,33 @@
+// Financial threshold proof
+// Public input:  subcontractorId (just an identifier, not sensitive)
+// Private inputs: privateBalance, minimumThreshold
+//   -- both stay on the subcontractor's machine; neither the balance nor
+//      the required bar is ever revealed on-chain. Only the boolean result
+//      (+ a commitment hash + timestamp) becomes public.
+// Output: pass/fail + commitment hash + timestamp
+
+type VettingProof = {
+  pass: Boolean,
+  commitmentHash: String,
+  timestamp: String,
+};
+
+circuit ThresholdVetting(
+  subcontractorId: String,
+  privateBalance: Field,
+  minimumThreshold: Field
+) -> VettingProof {
+  // Core logic: balance >= threshold. Neither operand appears in the output.
+  let passed = privateBalance >= minimumThreshold;
+
+  // Commitment is a hash of the result + subcontractorId + timestamp -
+  // enough to bind the proof to this vendor and this moment, without
+  // leaking either private value.
+  let hash = hash_field(passed);
+
+  return {
+    pass: passed,
+    commitmentHash: toString(hash),
+    timestamp: getCurrentTimestamp(),
+  };
+}

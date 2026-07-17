@@ -2,9 +2,10 @@
 
 Owner: Person A
 
-Express API. Three endpoints only — see root README for the contract table.
-Ship mocked responses first so Person B can wire the frontend immediately,
-then replace mocks with real circuit/proof-server/indexer calls.
+Express + TypeScript API. Both `privateBalance` and `minimumThreshold` are
+private circuit inputs - used only in-memory to generate the proof, then
+discarded. Nothing downstream (storage, `/proofs/*`, `/chat`) ever sees or
+returns either value.
 
 ## Run
 ```bash
@@ -12,7 +13,22 @@ npm install
 npm run dev
 ```
 
+## Endpoints
+
+| Endpoint                       | Method | Body                                                    | Returns                                                  |
+|---------------------------------|--------|----------------------------------------------------------|-------------------------------------------------------------|
+| `/submit-proof`                | POST   | `{ subcontractorId, privateBalance, minimumThreshold }`  | `{ subcontractorId, pass, commitmentHash, timestamp }`      |
+| `/proofs/recent`                | GET    | -                                                          | `[{ subcontractorId, pass, commitmentHash, timestamp }]`    |
+| `/proofs/:subcontractorId`      | GET    | -                                                          | `{ subcontractorId, pass, commitmentHash, timestamp }`      |
+| `/chat`                          | POST   | `{ subcontractorId, userMessage }`                        | `{ response, proofContext }`                                 |
+
+## Manual test
+```bash
+bash test.sh
+```
+
 ## Definition of Done
-- [ ] `/api/submit` calls real proof server, submits to Midnight
-- [ ] `/api/vendors` reads real indexer state
-- [ ] `/api/chat` has a tool to query vendor status
+- [ ] `/submit-proof` calls the real Compact circuit + local proof server
+- [ ] `/proofs/*` read from a real indexer instead of the in-memory object
+- [ ] `/chat` calls a real model instead of the hardcoded string, using
+      `SYSTEM_PROMPT` + proof metadata as its only context
