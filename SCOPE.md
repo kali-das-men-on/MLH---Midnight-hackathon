@@ -1,10 +1,10 @@
 # SCOPE — DO NOT ADD FEATURES
 
 ## Must Ship
-- [ ] Compact circuit compiles
+- [ ] Compact circuit compiles (`circuit/threshold-vetting`)
 - [ ] Proof submits to Midnight
-- [ ] Dashboard queries proof status
-- [ ] AI chat works end-to-end
+- [ ] Dashboard queries proof status (`/proofs/recent`)
+- [ ] AI chat works end-to-end (`/chat`)
 - [ ] Recording saved by Sat 6 PM
 
 ## If Time (Sat 4+ PM)
@@ -24,3 +24,8 @@
 - No new features after Fri 8 PM
 - If it's not integrated by Sat 4 PM, it doesn't ship
 - Recorded demo backup must be ready by Sat 6 PM
+
+## Privacy Decision (locked)
+Both `privateBalance` and `minimumThreshold` are private circuit inputs.
+Neither is ever persisted, logged, or returned by any API endpoint - only
+`pass`, `commitmentHash`, and `timestamp` are public.

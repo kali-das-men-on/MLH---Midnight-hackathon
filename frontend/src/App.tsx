@@ -1,7 +1,7 @@
+import React from "react";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-import SubmitForm from "./pages/SubmitForm.jsx";
-import VendorList from "./pages/VendorList.jsx";
-import ChatWidget from "./components/ChatWidget.jsx";
+import SubmitForm from "./pages/SubmitForm";
+import VendorList from "./pages/VendorList";
 
 export default function App() {
   return (
@@ -14,7 +14,6 @@ export default function App() {
         <Route path="/" element={<SubmitForm />} />
         <Route path="/vendors" element={<VendorList />} />
       </Routes>
-      <ChatWidget />
     </BrowserRouter>
   );
 }
