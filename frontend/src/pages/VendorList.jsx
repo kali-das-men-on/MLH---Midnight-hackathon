@@ -1,266 +1,124 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { getRecentProofs } from "../services/api";
+import React, { useEffect, useState } from "react";
+import { getRecentProofs, closeProof, setThreshold } from "../services/api";
 import ChatWidget from "../components/ChatWidget";
 
 export default function VendorList() {
   const [vendors, setVendors] = useState([]);
-  const [selectedVendor, setSelectedVendor] = useState(null);
-
+  const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [closingId, setClosingId] = useState(null);
 
-  const [search, setSearch] = useState("");
+  const [newVendorId, setNewVendorId] = useState("");
+  const [newThreshold, setNewThreshold] = useState("250000");
+  const [settingThreshold, setSettingThreshold] = useState(false);
+  const [thresholdMessage, setThresholdMessage] = useState(null);
 
-  async function loadVendors() {
+  async function load() {
     setLoading(true);
-    setError("");
-
-    try {
-      const data = await getRecentProofs();
-
-      setVendors(data);
-
-      if (data.length > 0 && !selectedVendor) {
-        setSelectedVendor(data[0]);
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Unable to load vendor proofs.");
-    } finally {
-      setLoading(false);
-    }
+    setVendors(await getRecentProofs());
+    setLoading(false);
   }
 
   useEffect(() => {
-    loadVendors();
+    load();
   }, []);
 
-  const filteredVendors = useMemo(() => {
-    return vendors.filter((vendor) =>
-      vendor.subcontractorId
-        .toLowerCase()
-        .includes(search.toLowerCase())
-    );
-  }, [vendors, search]);
+  async function handleClose(subcontractorId) {
+    setClosingId(subcontractorId);
+    try {
+      await closeProof(subcontractorId);
+      await load();
+    } finally {
+      setClosingId(null);
+    }
+  }
+
+  async function handleSetThreshold(e) {
+    e.preventDefault();
+    setSettingThreshold(true);
+    setThresholdMessage(null);
+    try {
+      await setThreshold(newVendorId.trim(), Number(newThreshold));
+      setThresholdMessage(`Threshold set for ${newVendorId}. They can now submit.`);
+      setNewVendorId("");
+    } finally {
+      setSettingThreshold(false);
+    }
+  }
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "380px 1fr",
-        gap: 24,
-        padding: 24,
-      }}
-    >
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, padding: 16 }}>
       <div>
-        <h2>Vendor Dashboard</h2>
+        <h2>Vendors</h2>
 
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            marginBottom: 16,
-          }}
-        >
-          <input
-            type="text"
-            placeholder="Search vendors..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              flex: 1,
-              padding: 10,
-            }}
-          />
-
-          <button
-            onClick={loadVendors}
-            disabled={loading}
-          >
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
+        <div style={{ border: "1px solid #ccc", borderRadius: 4, padding: 12, marginBottom: 16 }}>
+          <h3 style={{ marginTop: 0 }}>Set a Vendor's Threshold</h3>
+          <form onSubmit={handleSetThreshold} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+            <label>
+              Vendor ID
+              <input value={newVendorId} onChange={(e) => setNewVendorId(e.target.value)} required />
+            </label>
+            <label>
+              Required threshold (cents)
+              <input
+                type="number"
+                value={newThreshold}
+                onChange={(e) => setNewThreshold(e.target.value)}
+                required
+              />
+            </label>
+            <button type="submit" disabled={settingThreshold}>
+              {settingThreshold ? "Setting..." : "Set"}
+            </button>
+          </form>
+          {thresholdMessage && <p style={{ color: "#2e7d32" }}>{thresholdMessage}</p>}
         </div>
 
-        {error && (
-          <div
-            style={{
-              padding: 12,
-              background: "#ffeaea",
-              color: "#b00020",
-              borderRadius: 8,
-              marginBottom: 16,
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {loading ? (
-          <p>Loading vendors...</p>
-        ) : filteredVendors.length === 0 ? (
-          <p>No vendors found.</p>
-        ) : (
-          filteredVendors.map((vendor) => {
-            const selected =
-              selectedVendor &&
-              selectedVendor.subcontractorId === vendor.subcontractorId;
-
-            return (
-              <div
-                key={vendor.subcontractorId}
-                onClick={() => setSelectedVendor(vendor)}
-                style={{
-                  cursor: "pointer",
-                  padding: 16,
-                  borderRadius: 10,
-                  border: selected
-                    ? "2px solid #2563eb"
-                    : "1px solid #ddd",
-                  background: selected ? "#eff6ff" : "#fff",
-                  marginBottom: 12,
-                }}
+        <button onClick={load} disabled={loading}>
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
+        <table style={{ width: "100%", marginTop: 12 }}>
+          <thead>
+            <tr>
+              <th>Vendor</th>
+              <th>Result</th>
+              <th>Decision Status</th>
+              <th>Submitted</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {vendors.map((v) => (
+              <tr
+                key={v.subcontractorId}
+                style={{ fontWeight: v.subcontractorId === selected ? "bold" : "normal" }}
               >
-                <h3
-                  style={{
-                    marginTop: 0,
-                    marginBottom: 8,
-                  }}
-                >
-                  {vendor.subcontractorId}
-                </h3>
-
-                <div
-                  style={{
-                    fontWeight: "bold",
-                    color: vendor.pass
-                      ? "green"
-                      : "#b00020",
-                  }}
-                >
-                  {vendor.pass
-                    ? "✓ Qualified"
-                    : "✕ Not Qualified"}
-                </div>
-
-                <div
-                  style={{
-                    marginTop: 10,
-                    fontSize: 13,
-                    color: "#666",
-                  }}
-                >
-                  Commitment
-                </div>
-
-                <code
-                  style={{
-                    fontSize: 12,
-                    wordBreak: "break-word",
-                  }}
-                >
-                  {vendor.commitmentHash}
-                </code>
-
-                <div
-                  style={{
-                    marginTop: 10,
-                    fontSize: 13,
-                    color: "#666",
-                  }}
-                >
-                  Verified
-                </div>
-
-                <small>
-                  {new Date(
-                    vendor.timestamp
-                  ).toLocaleString()}
-                </small>
-              </div>
-            );
-          })
-        )}
+                <td onClick={() => setSelected(v.subcontractorId)} style={{ cursor: "pointer" }}>
+                  {v.subcontractorId}
+                </td>
+                <td>{v.pass ? "PASS" : "FAIL"}</td>
+                <td>{v.status === "closed" ? "Closed" : "Pending"}</td>
+                <td>{new Date(v.timestamp).toLocaleString()}</td>
+                <td>
+                  {v.status === "pending" && (
+                    <button
+                      onClick={() => handleClose(v.subcontractorId)}
+                      disabled={closingId === v.subcontractorId}
+                    >
+                      {closingId === v.subcontractorId ? "Closing..." : "Close"}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-
       <div>
-        {selectedVendor ? (
-          <>
-            <div
-              style={{
-                marginBottom: 20,
-                padding: 18,
-                borderRadius: 10,
-                border: "1px solid #ddd",
-                background: "#fff",
-              }}
-            >
-              <h2
-                style={{
-                  marginTop: 0,
-                }}
-              >
-                {selectedVendor.subcontractorId}
-              </h2>
-
-              <p>
-                <strong>Status:</strong>{" "}
-                <span
-                  style={{
-                    color: selectedVendor.pass
-                      ? "green"
-                      : "#b00020",
-                  }}
-                >
-                  {selectedVendor.pass
-                    ? "Qualified"
-                    : "Not Qualified"}
-                </span>
-              </p>
-
-              <p>
-                <strong>Commitment Hash</strong>
-              </p>
-
-              <code
-                style={{
-                  wordBreak: "break-word",
-                }}
-              >
-                {selectedVendor.commitmentHash}
-              </code>
-
-              <p
-                style={{
-                  marginTop: 14,
-                }}
-              >
-                <strong>Last Verification</strong>
-              </p>
-
-              <small>
-                {new Date(
-                  selectedVendor.timestamp
-                ).toLocaleString()}
-              </small>
-            </div>
-
-            <ChatWidget
-              subcontractorId={
-                selectedVendor.subcontractorId
-              }
-            />
-          </>
+        {selected ? (
+          <ChatWidget subcontractorId={selected} />
         ) : (
-          <div
-            style={{
-              padding: 40,
-              border: "1px dashed #ccc",
-              borderRadius: 10,
-              textAlign: "center",
-            }}
-          >
-            Select a vendor to open TrustVet AI.
-          </div>
+          <p>Select a vendor to chat about their status.</p>
         )}
       </div>
     </div>
