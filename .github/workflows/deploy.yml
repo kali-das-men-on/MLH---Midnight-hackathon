@@ -1,9 +1,10 @@
-name: Deploy Frontend
+name: Deploy Frontend to GitHub Pages
 
 on:
   push:
     branches:
       - main
+
   workflow_dispatch:
 
 permissions:
@@ -28,15 +29,15 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Dependencies
+      - name: Install dependencies
         working-directory: frontend
         run: npm install
 
-      - name: Build Frontend
+      - name: Build
         working-directory: frontend
         run: npm run build
 
-      - name: Upload Pages Artifact
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist
