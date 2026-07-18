@@ -1,33 +1,16 @@
+import CompactStandardLibrary;
+
 // Financial threshold proof
-// Public input:  subcontractorId (just an identifier, not sensitive)
-// Private inputs: privateBalance, minimumThreshold
-//   -- both stay on the subcontractor's machine; neither the balance nor
-//      the required bar is ever revealed on-chain. Only the boolean result
-//      (+ a commitment hash + timestamp) becomes public.
-// Output: pass/fail + commitment hash + timestamp
+// privateBalance and minimumThreshold are witnesses — private inputs that
+// run locally via TypeScript and never touch the chain directly.
+// The only thing that crosses into public ledger state is the boolean
+// result of the comparison, made public explicitly via disclose().
 
-type VettingProof = {
-  pass: Boolean,
-  commitmentHash: String,
-  timestamp: String,
-};
+witness privateBalance(): Uint<64>;
+witness minimumThreshold(): Uint<64>;
 
-circuit ThresholdVetting(
-  subcontractorId: String,
-  privateBalance: Field,
-  minimumThreshold: Field
-) -> VettingProof {
-  // Core logic: balance >= threshold. Neither operand appears in the output.
-  let passed = privateBalance >= minimumThreshold;
+export ledger passed: Boolean;
 
-  // Commitment is a hash of the result + subcontractorId + timestamp -
-  // enough to bind the proof to this vendor and this moment, without
-  // leaking either private value.
-  let hash = hash_field(passed);
-
-  return {
-    pass: passed,
-    commitmentHash: toString(hash),
-    timestamp: getCurrentTimestamp(),
-  };
+export circuit thresholdVetting(): [] {
+  passed = disclose(privateBalance() >= minimumThreshold());
 }
