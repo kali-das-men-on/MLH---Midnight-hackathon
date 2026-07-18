@@ -1,125 +1,336 @@
 import React, { useEffect, useState } from "react";
-import { getRecentProofs, closeProof, setThreshold } from "../services/api";
+import {
+  getRecentProofs,
+  closeProof,
+  setThreshold,
+} from "../services/api";
 import ChatWidget from "../components/ChatWidget";
 
 export default function VendorList() {
   const [vendors, setVendors] = useState([]);
-  const [selected, setSelected] = useState(null);
+  const [selectedVendor, setSelectedVendor] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [closingId, setClosingId] = useState(null);
 
-  const [newVendorId, setNewVendorId] = useState("");
-  const [newThreshold, setNewThreshold] = useState("250000");
-  const [settingThreshold, setSettingThreshold] = useState(false);
-  const [thresholdMessage, setThresholdMessage] = useState(null);
+  const [vendorId, setVendorId] = useState("");
+  const [threshold, setThresholdValue] = useState("250000");
 
-  async function load() {
+  const [settingThreshold, setSettingThreshold] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function loadVendors() {
     setLoading(true);
-    setVendors(await getRecentProofs());
-    setLoading(false);
+
+    try {
+      const data = await getRecentProofs();
+
+      setVendors(data);
+
+      if (
+        data.length &&
+        !selectedVendor
+      ) {
+        setSelectedVendor(data[0].subcontractorId);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
-    load();
+    loadVendors();
   }, []);
 
-  async function handleClose(subcontractorId) {
-    setClosingId(subcontractorId);
+  async function handleClose(id) {
+    setClosingId(id);
+
     try {
-      await closeProof(subcontractorId);
-      await load();
+      await closeProof(id);
+      await loadVendors();
+    } catch (err) {
+      console.error(err);
     } finally {
       setClosingId(null);
     }
   }
 
-  async function handleSetThreshold(e) {
+  async function handleThreshold(e) {
     e.preventDefault();
+
     setSettingThreshold(true);
-    setThresholdMessage(null);
+    setMessage("");
+
     try {
-      await setThreshold(newVendorId.trim(), Number(newThreshold));
-      setThresholdMessage(`Threshold set for ${newVendorId}. They can now submit.`);
-      setNewVendorId("");
+      await setThreshold(
+        vendorId.trim(),
+        Number(threshold)
+      );
+
+      setMessage(
+        `Threshold successfully set for ${vendorId}.`
+      );
+
+      setVendorId("");
+      setThresholdValue("250000");
+    } catch (err) {
+      console.error(err);
+      setMessage("Unable to set threshold.");
     } finally {
       setSettingThreshold(false);
     }
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, padding: 16 }}>
-      <div>
-        <h2>Vendors</h2>
+    <div className="page">
+      <div className="grid">
 
-        <div style={{ border: "1px solid #ccc", borderRadius: 4, padding: 12, marginBottom: 16 }}>
-          <h3 style={{ marginTop: 0 }}>Set a Vendor's Threshold</h3>
-          <form onSubmit={handleSetThreshold} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-            <label>
-              Vendor ID
-              <input value={newVendorId} onChange={(e) => setNewVendorId(e.target.value)} required />
-            </label>
-            <label>
-              Required threshold (cents)
-              <input
-                type="number"
-                value={newThreshold}
-                onChange={(e) => setNewThreshold(e.target.value)}
-                required
-              />
-            </label>
-            <button type="submit" disabled={settingThreshold}>
-              {settingThreshold ? "Setting..." : "Set"}
-            </button>
-          </form>
-          {thresholdMessage && <p style={{ color: "#2e7d32" }}>{thresholdMessage}</p>}
+        {/* LEFT COLUMN */}
+
+        <div>
+
+          <div
+            className="card"
+            style={{ marginBottom: 25 }}
+          >
+            <h2>Register Vendor</h2>
+
+            <p
+              style={{
+                marginBottom: 25,
+              }}
+            >
+              Assign a financial threshold before a
+              subcontractor can submit a proof.
+            </p>
+
+            <form
+              className="form"
+              onSubmit={handleThreshold}
+            >
+              <label>
+                Vendor ID
+
+                <input
+                  value={vendorId}
+                  onChange={(e) =>
+                    setVendorId(e.target.value)
+                  }
+                  required
+                />
+              </label>
+
+              <label>
+                Required Threshold (Private)
+
+                <input
+                  type="number"
+                  value={threshold}
+                  onChange={(e) =>
+                    setThresholdValue(e.target.value)
+                  }
+                  required
+                />
+              </label>
+
+              <button
+                className="primary-btn"
+                disabled={settingThreshold}
+              >
+                {settingThreshold
+                  ? "Saving..."
+                  : "Register Vendor"}
+              </button>
+
+              {message && (
+                <div className="success-box">
+                  {message}
+                </div>
+              )}
+            </form>
+          </div>
+
+          <div className="card">
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent:
+                  "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <h2>Vendor Registry</h2>
+
+              <button
+                className="secondary-btn"
+                onClick={loadVendors}
+              >
+                Refresh
+              </button>
+            </div>
+
+            {loading ? (
+              <p>Loading vendors...</p>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Vendor</th>
+                    <th>Status</th>
+                    <th>Review</th>
+                    <th>Submitted</th>
+                    <th></th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {vendors.map((vendor) => (
+                    <tr
+                      key={
+                        vendor.subcontractorId
+                      }
+                      style={{
+                        cursor: "pointer",
+                        background:
+                          selectedVendor ===
+                          vendor.subcontractorId
+                            ? "#18314d"
+                            : "",
+                      }}
+                    >
+                      <td
+                        onClick={() =>
+                          setSelectedVendor(
+                            vendor.subcontractorId
+                          )
+                        }
+                      >
+                        {
+                          vendor.subcontractorId
+                        }
+                      </td>
+
+                      <td>
+                        <span
+                          className={
+                            vendor.pass
+                              ? "badge success"
+                              : "badge fail"
+                          }
+                        >
+                          {vendor.pass
+                            ? "PASS"
+                            : "FAIL"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span
+                          className={
+                            vendor.status ===
+                            "closed"
+                              ? "badge closed"
+                              : "badge pending"
+                          }
+                        >
+                          {vendor.status.toUpperCase()}
+                        </span>
+                      </td>
+
+                      <td>
+                        {new Date(
+                          vendor.timestamp
+                        ).toLocaleString()}
+                      </td>
+
+                      <td>
+                        {vendor.status ===
+                          "pending" && (
+                          <button
+                            className="secondary-btn"
+                            disabled={
+                              closingId ===
+                              vendor.subcontractorId
+                            }
+                            onClick={() =>
+                              handleClose(
+                                vendor.subcontractorId
+                              )
+                            }
+                          >
+                            {closingId ===
+                            vendor.subcontractorId
+                              ? "Closing..."
+                              : "Close"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
 
-        <button onClick={load} disabled={loading}>
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
-        <table style={{ width: "100%", marginTop: 12 }}>
-          <thead>
-            <tr>
-              <th>Vendor</th>
-              <th>Result</th>
-              <th>Decision Status</th>
-              <th>Submitted</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {vendors.map((v) => (
-              <tr
-                key={v.subcontractorId}
-                style={{ fontWeight: v.subcontractorId === selected ? "bold" : "normal" }}
-              >
-                <td onClick={() => setSelected(v.subcontractorId)} style={{ cursor: "pointer" }}>
-                  {v.subcontractorId}
-                </td>
-                <td>{v.pass ? "PASS" : "FAIL"}</td>
-                <td>{v.status === "closed" ? "Closed" : "Pending"}</td>
-                <td>{new Date(v.timestamp).toLocaleString()}</td>
-                <td>
-                  {v.status === "pending" && (
-                    <button
-                      onClick={() => handleClose(v.subcontractorId)}
-                      disabled={closingId === v.subcontractorId}
-                    >
-                      {closingId === v.subcontractorId ? "Closing..." : "Close"}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div>
-        {selected ? (
-          <ChatWidget subcontractorId={selected} />
-        ) : (
-          <p>Select a vendor to chat about their status.</p>
-        )}
+        {/* RIGHT COLUMN */}
+
+        <div>
+
+          <div
+            className="card"
+            style={{
+              marginBottom: 20,
+            }}
+          >
+            <h2>TrustVet AI</h2>
+
+            <p>
+              Select a vendor to ask
+              questions about proof status,
+              qualification,
+              commitment hashes,
+              and verification timestamps.
+            </p>
+
+            <br />
+
+            <small
+              style={{
+                color: "#9fb3c8",
+              }}
+            >
+              The AI never receives or reveals
+              balances, thresholds,
+              witnesses,
+              or any private financial
+              information.
+            </small>
+          </div>
+
+          {selectedVendor ? (
+            <ChatWidget
+              subcontractorId={
+                selectedVendor
+              }
+            />
+          ) : (
+            <div className="card">
+              <h3>No Vendor Selected</h3>
+
+              <p>
+                Choose a vendor from the table
+                to begin chatting with
+                TrustVet AI.
+              </p>
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );

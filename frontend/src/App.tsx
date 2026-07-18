@@ -1,19 +1,45 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import {
+  HashRouter,
+  Routes,
+  Route,
+  NavLink,
+} from "react-router-dom";
+
 import SubmitForm from "./pages/SubmitForm";
 import VendorList from "./pages/VendorList";
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <nav style={{ display: "flex", gap: 16, padding: 16 }}>
-        <Link to="/">Submit</Link>
-        <Link to="/vendors">Vendors</Link>
+    <HashRouter>
+      <nav className="navbar">
+        <div className="brand">
+          TRUST
+          <span className="brand-accent">VET</span>
+        </div>
+
+        <div className="nav-links">
+          <NavLink to="/">
+            Submit Proof
+          </NavLink>
+
+          <NavLink to="/vendors">
+            Vendors
+          </NavLink>
+        </div>
       </nav>
+
       <Routes>
-        <Route path="/" element={<SubmitForm />} />
-        <Route path="/vendors" element={<VendorList />} />
+        <Route
+          path="/"
+          element={<SubmitForm />}
+        />
+
+        <Route
+          path="/vendors"
+          element={<VendorList />}
+        />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

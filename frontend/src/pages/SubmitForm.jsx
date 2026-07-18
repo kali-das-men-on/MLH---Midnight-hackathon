@@ -4,70 +4,212 @@ import { submitProof } from "../services/api";
 export default function SubmitForm() {
   const [subcontractorId, setSubcontractorId] = useState("");
   const [privateBalance, setPrivateBalance] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
 
   async function handleSubmit(e) {
     e.preventDefault();
+
     setLoading(true);
-    setError(null);
+    setError("");
     setResult(null);
+
     try {
-      const data = await submitProof(subcontractorId.trim(), Number(privateBalance));
-      if (data && data.error) {
-        setError(data.error);
+      const response = await submitProof(
+        subcontractorId.trim(),
+        Number(privateBalance)
+      );
+
+      if (response?.error) {
+        setError(response.error);
       } else {
-        setResult(data);
-        setPrivateBalance(""); // private input never lingers in state
+        setResult(response);
+
+        // Never keep private financial data longer than necessary.
+        setPrivateBalance("");
       }
     } catch (err) {
       console.error(err);
-      setError("Unable to reach the backend.");
+      setError("Unable to contact the TrustVet backend.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div style={{ padding: 16, maxWidth: 400 }}>
-      <h2>Submit Financial Proof</h2>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <label>
-          Vendor ID
-          <input value={subcontractorId} onChange={(e) => setSubcontractorId(e.target.value)} required />
-        </label>
-        <label>
-          Private balance (cents)
-          <input
-            type="number"
-            value={privateBalance}
-            onChange={(e) => setPrivateBalance(e.target.value)}
-            required
-          />
-          <small style={{ display: "block", color: "#666" }}>
-            Stays private. Never sent past this form to the chain. Your required
-            threshold is set by your prime contractor — you don't choose or see
-            it here.
-          </small>
-        </label>
-        <button type="submit" disabled={loading}>
-          {loading ? "Submitting..." : "Submit Proof"}
-        </button>
-      </form>
+    <div className="page">
+      <div
+        className="card"
+        style={{
+          maxWidth: 650,
+          margin: "0 auto",
+        }}
+      >
+        <h2>Submit Zero-Knowledge Financial Proof</h2>
 
-      {error && (
-        <div style={{ marginTop: 16, padding: 12, background: "#fdecea", borderRadius: 4 }}>
-          <p>{error}</p>
-        </div>
-      )}
+        <p
+          style={{
+            marginBottom: 30,
+          }}
+        >
+          Submit a proof that demonstrates your organization satisfies the
+          financial requirements without exposing confidential financial
+          information.
+        </p>
 
-      {result && (
-        <div style={{ marginTop: 16, padding: 12, background: "#e8f5e9", borderRadius: 4 }}>
-          <p><strong>Submitted</strong></p>
-          <p>Your submission has been received. Your prime contractor will follow up with the outcome.</p>
-        </div>
-      )}
+        <form
+          className="form"
+          onSubmit={handleSubmit}
+        >
+          <label>
+            Vendor ID
+
+            <input
+              type="text"
+              value={subcontractorId}
+              placeholder="vendor-001"
+              onChange={(e) =>
+                setSubcontractorId(e.target.value)
+              }
+              required
+            />
+          </label>
+
+          <label>
+            Private Balance
+
+            <input
+              type="number"
+              value={privateBalance}
+              placeholder="Private Balance"
+              onChange={(e) =>
+                setPrivateBalance(e.target.value)
+              }
+              required
+            />
+
+            <small
+              style={{
+                color: "#9fb3c8",
+                marginTop: 8,
+              }}
+            >
+              Your financial balance never leaves the
+              zero-knowledge proving process. Neither the
+              blockchain nor TrustVet stores this value.
+            </small>
+          </label>
+
+          <button
+            className="primary-btn"
+            disabled={loading}
+            type="submit"
+          >
+            {loading
+              ? "Generating Proof..."
+              : "Generate & Submit Proof"}
+          </button>
+        </form>
+
+        {error && (
+          <div className="error-box">
+            <strong>Error</strong>
+
+            <p
+              style={{
+                marginTop: 10,
+              }}
+            >
+              {error}
+            </p>
+          </div>
+        )}
+
+        {result && (
+          <div className="success-box">
+            <h3
+              style={{
+                marginBottom: 12,
+              }}
+            >
+              ✓ Proof Submitted
+            </h3>
+
+            <p>
+              Your proof has been successfully submitted for
+              verification.
+            </p>
+
+            <br />
+
+            <p>
+              The reviewing organization will determine whether
+              your submission qualifies.
+            </p>
+
+            <br />
+
+            <div
+              style={{
+                display: "grid",
+                gap: 14,
+              }}
+            >
+              <div>
+                <strong>Vendor</strong>
+
+                <div>{subcontractorId}</div>
+              </div>
+
+              {result.commitmentHash && (
+                <div>
+                  <strong>Commitment Hash</strong>
+
+                  <div
+                    style={{
+                      wordBreak: "break-all",
+                      color: "#4ec9ff",
+                    }}
+                  >
+                    {result.commitmentHash}
+                  </div>
+                </div>
+              )}
+
+              {result.timestamp && (
+                <div>
+                  <strong>Submitted</strong>
+
+                  <div>
+                    {new Date(
+                      result.timestamp
+                    ).toLocaleString()}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <hr
+              style={{
+                margin: "20px 0",
+                borderColor: "#2b4965",
+              }}
+            />
+
+            <small
+              style={{
+                color: "#9fb3c8",
+              }}
+            >
+              Privacy Notice: This interface never displays your
+              balance or the required financial threshold. Only the
+              zero-knowledge proof and commitment are recorded.
+            </small>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

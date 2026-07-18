@@ -5,6 +5,7 @@ export default function ChatWidget({ subcontractorId }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -12,38 +13,65 @@ export default function ChatWidget({ subcontractorId }) {
       {
         role: "assistant",
         text:
-          `Hello! I'm TrustVet AI.\n\n` +
-          `I'm currently focused on ${subcontractorId}.\n\n` +
-          `I can help explain:\n` +
-          `• Whether the vendor qualifies\n` +
-          `• Proof verification status\n` +
+          `TrustVet AI initialized.\n\n` +
+          `Current Vendor: ${subcontractorId}\n\n` +
+          `I can answer questions about:\n` +
+          `• Qualification status\n` +
+          `• Proof verification\n` +
           `• Commitment hashes\n` +
-          `• Verification timestamps\n\n` +
-          `I cannot reveal private balances or financial thresholds.`,
+          `• Submission timestamps\n\n` +
+          `I cannot reveal balances, thresholds, witnesses, or any private financial information.`,
       },
     ]);
   }, [subcontractorId]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
   }, [messages]);
 
   async function sendMessage() {
     if (!input.trim() || loading) return;
+
     const question = input.trim();
 
-    setMessages((prev) => [...prev, { role: "user", text: question }]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        text: question,
+      },
+    ]);
+
     setInput("");
     setLoading(true);
 
     try {
-      const result = await chat(subcontractorId, question);
-      setMessages((prev) => [...prev, { role: "assistant", text: result.response }]);
-    } catch (err) {
-      console.error(err);
+      const response = await chat(
+        subcontractorId,
+        question
+      );
+
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: "I couldn't reach the TrustVet backend. Please try again." },
+        {
+          role: "assistant",
+          text:
+            response?.response ??
+            "No response received.",
+        },
+      ]);
+    } catch (err) {
+      console.error(err);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text:
+            "Unable to contact the TrustVet backend. Please try again.",
+        },
       ]);
     } finally {
       setLoading(false);
@@ -51,47 +79,93 @@ export default function ChatWidget({ subcontractorId }) {
   }
 
   function handleKeyDown(e) {
-    if (e.key === "Enter") sendMessage();
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "600px", border: "1px solid #ddd", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
-      <div style={{ padding: 16, borderBottom: "1px solid #ddd", background: "#f8fafc" }}>
-        <h3 style={{ margin: 0 }}>TrustVet AI</h3>
-        <small style={{ color: "#666" }}>Vendor: {subcontractorId}</small>
+    <div className="chat-container">
+
+      <div className="chat-header">
+        <h2
+          style={{
+            marginBottom: 8,
+          }}
+        >
+          TrustVet AI
+        </h2>
+
+        <div
+          style={{
+            color: "#9fb3c8",
+            fontSize: 14,
+          }}
+        >
+          Vendor: <strong>{subcontractorId}</strong>
+        </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 16, background: "#fafafa" }}>
+      <div className="chat-body">
+
         {messages.map((message, index) => (
-          <div key={index} style={{ display: "flex", justifyContent: message.role === "user" ? "flex-end" : "flex-start", marginBottom: 12 }}>
-            <div style={{ maxWidth: "75%", padding: "12px 14px", borderRadius: 10, whiteSpace: "pre-wrap", background: message.role === "user" ? "#2563eb" : "#ffffff", color: message.role === "user" ? "#fff" : "#111", border: message.role === "assistant" ? "1px solid #ddd" : "none" }}>
-              {message.text}
-            </div>
+          <div
+            key={index}
+            className={`message ${
+              message.role === "user"
+                ? "user"
+                : "ai"
+            }`}
+          >
+            {message.text}
           </div>
         ))}
+
         {loading && (
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ display: "inline-block", padding: "12px 14px", borderRadius: 10, border: "1px solid #ddd", background: "#fff" }}>
-              TrustVet AI is thinking...
-            </div>
+          <div className="message ai">
+            TrustVet AI is analyzing proof metadata...
           </div>
         )}
+
         <div ref={bottomRef} />
       </div>
 
-      <div style={{ display: "flex", gap: 10, padding: 16, borderTop: "1px solid #ddd", background: "#fff" }}>
+      <div className="chat-input">
+
         <input
-          type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
           placeholder="Ask about this vendor..."
-          style={{ flex: 1, padding: 12 }}
+          onChange={(e) =>
+            setInput(e.target.value)
+          }
+          onKeyDown={handleKeyDown}
         />
-        <button onClick={sendMessage} disabled={loading} style={{ padding: "12px 18px", cursor: "pointer" }}>
-          Send
+
+        <button
+          className="primary-btn"
+          disabled={loading}
+          onClick={sendMessage}
+        >
+          {loading ? "..." : "Send"}
         </button>
+
       </div>
+
+      <div
+        style={{
+          padding: "12px 18px",
+          borderTop: "1px solid #2b4965",
+          fontSize: 12,
+          color: "#9fb3c8",
+          background: "#0b1624",
+        }}
+      >
+        🔒 TrustVet AI only receives proof metadata (pass/fail,
+        commitment hash, timestamp). It never accesses balances,
+        thresholds, or any confidential financial information.
+      </div>
+
     </div>
   );
 }
