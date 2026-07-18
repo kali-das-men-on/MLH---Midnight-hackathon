@@ -1,8 +1,11 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import Groq from "groq-sdk";
 
 dotenv.config();
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const app = express();
 app.use(cors());
@@ -16,12 +19,37 @@ type StoredProof = {
   pass: boolean;
   commitmentHash: string;
   timestamp: string;
+  status: "pending" | "closed";
   // privateBalance and minimumThreshold are NEVER stored here.
-  // Both are private circuit inputs, used only in-memory to generate the
-  // proof for the duration of this request, then discarded.
 };
 
 const proofDB: Record<string, StoredProof> = {};
+
+// Thresholds are set by the prime contractor ahead of time, per vendor.
+// Subcontractors never choose or see their own threshold - they only ever
+// submit a balance against whatever the prime has configured for them.
+const thresholdDB: Record<string, number> = {};
+
+// ============================================================================
+// ENDPOINT: Set a vendor's required threshold (prime contractor action)
+// POST /vendors/:subcontractorId/threshold
+// body: { minimumThreshold }
+// returns: { subcontractorId, status: "threshold_set" }
+//
+// Must be called before that vendor can submit a proof. The subcontractor
+// never sees or chooses this value - it's the prime's requirement.
+// ============================================================================
+app.post("/vendors/:subcontractorId/threshold", (req: Request, res: Response) => {
+  const { subcontractorId } = req.params;
+  const { minimumThreshold } = req.body;
+
+  if (minimumThreshold == null) {
+    return res.status(400).json({ error: "minimumThreshold required" });
+  }
+
+  thresholdDB[subcontractorId] = minimumThreshold;
+  res.json({ subcontractorId, status: "threshold_set" });
+});
 
 // ============================================================================
 // ENDPOINT 1: Submit Proof
@@ -30,11 +58,18 @@ const proofDB: Record<string, StoredProof> = {};
 // returns: { subcontractorId, pass, commitmentHash, timestamp }
 // ============================================================================
 app.post("/submit-proof", (req: Request, res: Response) => {
-  const { subcontractorId, privateBalance, minimumThreshold } = req.body;
+  const { subcontractorId, privateBalance } = req.body;
 
-  if (!subcontractorId || privateBalance == null || minimumThreshold == null) {
+  if (!subcontractorId || privateBalance == null) {
     return res.status(400).json({
-      error: "subcontractorId, privateBalance, minimumThreshold required",
+      error: "subcontractorId, privateBalance required",
+    });
+  }
+
+  const minimumThreshold = thresholdDB[subcontractorId];
+  if (minimumThreshold == null) {
+    return res.status(400).json({
+      error: "No threshold configured for this vendor yet. The prime contractor must set one first.",
     });
   }
 
@@ -49,19 +84,36 @@ app.post("/submit-proof", (req: Request, res: Response) => {
     pass: passed,
     commitmentHash,
     timestamp,
+    status: "pending",
   };
 
-  // Neither privateBalance nor minimumThreshold is echoed back - both stay
-  // private, matching the circuit's privacy guarantee.
-  res.json({ subcontractorId, pass: passed, commitmentHash, timestamp });
+  res.json({ subcontractorId, status: "received" });
 
   console.log(`Proof submitted: ${subcontractorId} -> ${passed ? "PASS" : "FAIL"}`);
 });
 
 // ============================================================================
+// ENDPOINT: Close a proof (prime contractor action)
+// POST /proofs/:subcontractorId/close
+// returns: { subcontractorId, status: "closed" }
+//
+// Once closed, the result becomes visible on the dashboard as final. Nothing
+// here notifies the subcontractor - that's the prime's responsibility,
+// outside this app.
+// ============================================================================
+app.post("/proofs/:subcontractorId/close", (req: Request, res: Response) => {
+  const proof = proofDB[req.params.subcontractorId];
+  if (!proof) {
+    return res.status(404).json({ error: "Proof not found" });
+  }
+  proof.status = "closed";
+  res.json({ subcontractorId: proof.subcontractorId, status: "closed" });
+});
+
+// ============================================================================
 // ENDPOINT 2: List recent proofs
 // GET /proofs/recent
-// returns: [{ subcontractorId, pass, commitmentHash, timestamp }]
+// returns: [{ subcontractorId, pass, commitmentHash, timestamp, status }]
 // ============================================================================
 app.get("/proofs/recent", (_req: Request, res: Response) => {
   res.json(Object.values(proofDB));
@@ -119,22 +171,39 @@ app.post("/chat", async (req: Request, res: Response) => {
     });
   }
 
-  // TODO(Person A / owner of AI integration): replace with a real model call
-  // using SYSTEM_PROMPT + proof as the only context the model receives.
-  const response = `${subcontractorId} has a ${
-    proof.pass ? "valid" : "invalid"
-  } vetting proof. Proof date: ${proof.timestamp}.`;
+  const proofContext = {
+    pass: proof.pass,
+    commitmentHash: proof.commitmentHash,
+    timestamp: proof.timestamp,
+  };
 
-  res.json({
-    response,
-    proofContext: {
-      pass: proof.pass,
-      commitmentHash: proof.commitmentHash,
-      timestamp: proof.timestamp,
-    },
-  });
+  try {
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Proof metadata for ${subcontractorId}: ${JSON.stringify(
+            proofContext
+          )}\n\nQuestion: ${userMessage}`,
+        },
+      ],
+      max_tokens: 150,
+    });
 
-  console.log(`Chat: ${subcontractorId} | "${userMessage}" -> "${response}"`);
+    const response = completion.choices[0]?.message?.content || "No response generated.";
+
+    res.json({ response, proofContext });
+
+    console.log(`Chat: ${subcontractorId} | "${userMessage}" -> "${response}"`);
+  } catch (err) {
+    console.error("Groq API call failed:", err);
+    res.status(500).json({
+      response: "Something went wrong generating a response. Please try again.",
+      proofContext,
+    });
+  }
 });
 
 const PORT = process.env.PORT || 5000;
